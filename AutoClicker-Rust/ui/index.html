@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WARDOGS AUTOKLICKER</title>
+<!-- Schrift: Rajdhani + Barlow (online). Offline greift automatisch Bahnschrift/Segoe UI. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+<style>
+  :root {
+    --bg: #050505;
+    --panel: rgba(10, 10, 10, 0.52);
+    --line: rgba(255, 255, 255, 0.14);
+    --text: #f5f5f5;
+    --muted: #a8a8a8;
+    --accent: #ffffff;
+    --team: #2ee66b;               /* wird je nach Team gesetzt */
+    --ok: #35e089;
+    --warn: #ff9f1c;
+    --err: #ff4d4d;
+    --display: "Rajdhani", "Bahnschrift", "Segoe UI", sans-serif;
+    --body: "Barlow", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    --titlebar: 44px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+  }
+  [hidden] { display: none !important; }
+
+  /* ---------- Hintergrund (soll hervorstechen) ---------- */
+  .bg {
+    position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+    background:
+      radial-gradient(1000px 640px at 82% 40%, color-mix(in srgb, var(--team) 30%, transparent), transparent 70%),
+      radial-gradient(700px 500px at 5% 100%, rgba(255, 255, 255, 0.05), transparent 70%),
+      var(--bg);
+    transition: background 0.6s ease;
+  }
+  /* Eigenes Wardogs-Bild: einfach assets\bg.jpg ablegen */
+  .bg-img {
+    position: absolute; inset: 0;
+    background: center / cover no-repeat;
+    opacity: 0; transition: opacity 0.6s ease;
+  }
+  .has-bg .bg-img { opacity: 0.95; filter: saturate(1.05) brightness(0.8); }
+  /* Team-Logo gross und deutlich sichtbar */
+  .bg-logo {
+    position: absolute; right: -6%; top: 50%; transform: translateY(-50%);
+    height: 112%; max-width: 78%; object-fit: contain;
+    opacity: 0.26;
+    filter: drop-shadow(0 0 90px var(--team)) drop-shadow(0 0 30px var(--team));
+    transition: opacity 0.4s ease;
+  }
+  .has-bg .bg-logo { opacity: 0.12; }
+  .bg-logo.swap { opacity: 0 !important; }
+  .bg-fade {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(90deg, rgba(0, 0, 0, 0.60) 0%, rgba(0, 0, 0, 0.14) 55%, rgba(0, 0, 0, 0.42) 100%),
+      radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+  }
+
+  /* ---------- Resize-Kanten ---------- */
+  .rs { position: fixed; z-index: 200; }
+  .rs-n, .rs-s { left: 8px; right: 8px; height: 5px; }
+  .rs-e, .rs-w { top: 8px; bottom: 8px; width: 5px; }
+  .rs-n { top: 0; cursor: ns-resize; } .rs-s { bottom: 0; cursor: ns-resize; }
+  .rs-e { right: 0; cursor: ew-resize; } .rs-w { left: 0; cursor: ew-resize; }
+  .rs-ne, .rs-nw, .rs-se, .rs-sw { width: 9px; height: 9px; }
+  .rs-ne { top: 0; right: 0; cursor: nesw-resize; } .rs-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+  .rs-nw { top: 0; left: 0; cursor: nwse-resize; } .rs-se { bottom: 0; right: 0; cursor: nwse-resize; }
+
+  /* ---------- Titelleiste ---------- */
+  .titlebar {
+    position: fixed; top: 0; left: 0; right: 0; height: var(--titlebar); z-index: 100;
+    display: flex; align-items: center; gap: 14px; padding-left: 16px;
+    background: rgba(5, 5, 5, 0.88); border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(12px);
+  }
+  .tb-brand { display: flex; align-items: center; gap: 10px; height: 100%; }
+  .tb-brand > * { pointer-events: none; }
+  .tb-mark { width: 22px; height: 22px; color: #fff; }
+  .tb-title { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: 0.06em; }
+  .tb-sub { font-family: var(--display); font-weight: 600; font-size: 12px; letter-spacing: 0.22em; color: var(--muted); }
+  .tb-drag { flex: 1; height: 100%; }
+  .tb-controls { display: flex; height: 100%; }
+  .tb-controls button {
+    width: 48px; height: 100%; border: 0; background: transparent; color: var(--muted);
+    display: grid; place-items: center; cursor: pointer; transition: background 0.15s, color 0.15s;
+  }
+  .tb-controls button:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
+  .tb-controls button#btnClose:hover { background: #e5384b; color: #fff; }
+  .tb-controls svg { width: 14px; height: 14px; }
+  #btnMax .ico-restore { display: none; }
+  #btnMax.is-max .ico-restore { display: block; }
+  #btnMax.is-max .ico-max { display: none; }
+
+  /* ---------- Status-Pill (einzige farbige Stelle) ---------- */
+  .status {
+    --tone: var(--ok);
+    display: inline-flex; align-items: center; gap: 8px; padding: 5px 14px 5px 11px;
+    border-radius: 99px; font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: 0.04em;
+    color: var(--tone); background: color-mix(in srgb, var(--tone) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tone) 45%, transparent);
+    max-width: 440px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: color 0.25s, background 0.25s, border-color 0.25s;
+  }
+  .status[data-tone="busy"] { --tone: var(--warn); }
+  .status[data-tone="err"] { --tone: var(--err); }
+  .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--tone); box-shadow: 0 0 8px var(--tone); }
+  .status[data-tone="busy"] .dot { animation: blink 1s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: 0.3; } }
+
+  /* ---------- Ladescreen ---------- */
+  #loader {
+    position: fixed; inset: 0; z-index: 50;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;
+    background: var(--bg);
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+  }
+  #loader.hide { opacity: 0; transform: scale(1.05); visibility: hidden; }
+  .logo {
+    width: 84px; height: 84px; border-radius: 26px; display: grid; place-items: center; background: #fff;
+    box-shadow: 0 0 32px rgba(255, 255, 255, 0.14), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .logo svg { width: 42px; height: 42px; color: #080808; }
+  @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+  .loader-title { font-family: var(--display); font-size: 26px; font-weight: 700; letter-spacing: 0.18em; }
+  .loader-sub { color: var(--muted); font-size: 12px; margin-top: -16px; letter-spacing: 0.24em; text-transform: uppercase; }
+  .spinner {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.12); border-top-color: #fff; border-right-color: #777;
+    animation: spin 0.9s cubic-bezier(.5, .15, .5, .85) infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- Layout ---------- */
+  #app {
+    position: fixed; top: var(--titlebar); left: 0; right: 0; bottom: 0; z-index: 10;
+    display: flex;
+    opacity: 0; transform: translateY(10px);
+    transition: opacity 0.7s ease 0.15s, transform 0.7s ease 0.15s;
+  }
+  #app.show { opacity: 1; transform: none; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 64px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 16px 0; background: rgba(5, 5, 5, 0.72); border-right: 1px solid var(--line);
+    backdrop-filter: blur(12px); position: relative; z-index: 20;
+  }
+  .sidebar button {
+    position: relative; width: 44px; height: 44px; border: 0; border-radius: 14px; background: transparent; cursor: pointer;
+    color: var(--muted); display: grid; place-items: center; transition: color 0.2s, background 0.2s;
+  }
+  .sidebar button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .sidebar button:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+  .sidebar button.on { color: #080808; background: #fff; }
+  .sidebar button::after {
+    content: attr(data-tip); position: absolute; left: 56px; top: 50%; transform: translateY(-50%) translateX(-4px);
+    padding: 6px 12px; white-space: nowrap; font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: #fff; background: #111; border: 1px solid var(--line); border-radius: 10px;
+    opacity: 0; pointer-events: none; transition: opacity 0.15s, transform 0.15s;
+  }
+  .sidebar button:hover::after { opacity: 1; transform: translateY(-50%); }
+  .sb-spacer { flex: 1; }
+  .sb-ver { font-family: var(--display); font-size: 11px; letter-spacing: 0.14em; color: #666; }
+
+  .content { flex: 1; min-width: 0; padding: 22px; display: flex; }
+  .shell {
+    width: 100%; max-width: 960px; margin: 0 auto; min-height: 0;
+    display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 18px;
+  }
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; overflow-y: auto; }
+  }
+
+  /* ---------- Panels (Glas, Hintergrund scheint durch) ---------- */
+  .panel {
+    position: relative; min-height: 0; border-radius: 24px;
+    background: var(--panel); border: 1px solid var(--line);
+    backdrop-filter: blur(16px) saturate(1.15);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  /* dezente Eck-Markierungen, innen im Panel */
+  .frame::before {
+    --br: rgba(255, 255, 255, 0.45); --l: 14px; --t: 2px;
+    content: ""; position: absolute; inset: 10px; pointer-events: none; z-index: 3;
+    background:
+      linear-gradient(var(--br), var(--br)) top left / var(--l) var(--t) no-repeat,
+      linear-gradient(var(--br), var(--br)) top left / var(--t) var(--l) no-repeat,
+      linear-gradient(var(--br), var(--br)) top right / var(--l) var(--t) no-repeat,
+      linear-gradient(var(--br), var(--br)) top right / var(--t) var(--l) no-repeat,
+      linear-gradient(var(--br), var(--br)) bottom left / var(--l) var(--t) no-repeat,
+      linear-gradient(var(--br), var(--br)) bottom left / var(--t) var(--l) no-repeat,
+      linear-gradient(var(--br), var(--br)) bottom right / var(--l) var(--t) no-repeat,
+      linear-gradient(var(--br), var(--br)) bottom right / var(--t) var(--l) no-repeat;
+  }
+  .panel-in { height: 100%; padding: 28px; display: flex; flex-direction: column; gap: 22px; overflow-y: auto; scrollbar-width: none; border-radius: 24px; }
+  .panel-in::-webkit-scrollbar { display: none; }
+  .view { display: flex; flex-direction: column; gap: 22px; }
+
+  /* ---------- Typografie ---------- */
+  .eyebrow { font-family: var(--display); font-weight: 600; font-size: 12px; letter-spacing: 0.34em; text-transform: uppercase; color: var(--muted); }
+  .head h1 { font-family: var(--display); font-weight: 700; font-size: 34px; line-height: 1.05; letter-spacing: 0.10em; text-transform: uppercase; margin-top: 6px; }
+  .head p { font-size: 14px; color: var(--muted); margin-top: 6px; }
+  .label { font-family: var(--display); font-weight: 600; font-size: 12px; letter-spacing: 0.20em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .label b { color: #fff; font-weight: 700; letter-spacing: 0.04em; font-size: 15px; }
+  .hint { font-size: 13px; line-height: 1.55; color: var(--muted); padding: 12px 14px; border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
+  .hint b { color: #fff; font-weight: 600; }
+
+  /* ---------- Team-Karten ---------- */
+  .team-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .team-option {
+    --tc: #fff;
+    min-width: 0; padding: 14px 10px 12px; border-radius: 18px; cursor: pointer; text-align: center; color: var(--text);
+    border: 1px solid var(--line); background: rgba(0, 0, 0, 0.35);
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.25s, background 0.2s;
+  }
+  .team-option[data-team="manticore"] { --tc: #2ee66b; }
+  .team-option[data-team="valkyr"] { --tc: #ff4d4d; }
+  .team-option[data-team="lonesta"] { --tc: #4cc9ff; }
+  .team-option:hover { transform: translateY(-3px); border-color: rgba(255, 255, 255, 0.45); }
+  .team-option.selected {
+    border-color: #fff; background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 26px color-mix(in srgb, var(--tc) 40%, transparent), inset 0 0 0 1px #fff;
+  }
+  .team-option img { display: block; width: 100%; height: 108px; object-fit: contain; margin-bottom: 10px;
+    filter: drop-shadow(0 0 14px color-mix(in srgb, var(--tc) 45%, transparent)); }
+  .team-option span { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: 0.16em; text-transform: uppercase; }
+  .team-image-placeholder { height: 108px; display: grid; place-items: center; margin-bottom: 10px; color: #777; font-size: 11px; border: 1px dashed #555; border-radius: 12px; }
+  .team-status { font-family: var(--display); font-weight: 600; font-size: 14px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--muted); }
+
+  /* ---------- Eingabe-Elemente ---------- */
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 99px; outline: none; cursor: pointer;
+    background: linear-gradient(90deg, #fff var(--p, 20%), rgba(255, 255, 255, 0.18) var(--p, 20%));
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+    background: #111; border: 4px solid #fff; box-shadow: 0 0 10px rgba(255, 255, 255, 0.25);
+  }
+  .num {
+    width: 100%; margin-top: 12px; padding: 11px 14px; color: var(--text); font-family: var(--body); font-size: 15px;
+    background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); border-radius: 14px; outline: none; transition: border 0.2s; user-select: text;
+  }
+  .num:focus { border-color: #fff; }
+  .seg { display: flex; padding: 4px; gap: 4px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); border-radius: 16px; }
+  .seg button {
+    flex: 1; padding: 10px 8px; border: 0; border-radius: 12px; cursor: pointer; background: transparent; color: var(--muted);
+    font-family: var(--display); font-weight: 600; font-size: 14px; letter-spacing: 0.10em; text-transform: uppercase; transition: all 0.2s;
+  }
+  .seg button:hover { color: #fff; }
+  .seg button.on { background: #fff; color: #080808; }
+
+  /* ---------- Rechte Karte ---------- */
+  .right .panel-in { justify-content: space-between; }
+  .count { text-align: center; padding: 10px 0; }
+  .count .big { font-family: var(--display); font-size: 76px; font-weight: 700; line-height: 1; letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums; color: #fff; text-shadow: 0 0 30px rgba(255, 255, 255, 0.2); }
+  .count .small { font-family: var(--display); font-weight: 600; font-size: 12px; letter-spacing: 0.30em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+  .link { background: none; border: 0; color: var(--muted); font-size: 12px; cursor: pointer; margin-top: 10px; text-decoration: underline; text-underline-offset: 3px; }
+  .link:hover { color: #fff; }
+  .hotkey { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); }
+  .kbd {
+    padding: 6px 16px; border-radius: 10px; font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: 0.10em;
+    background: rgba(255, 255, 255, 0.10); border: 1px solid var(--line); border-bottom-width: 3px;
+  }
+  .ghost {
+    padding: 8px 14px; border-radius: 12px; cursor: pointer; color: #fff; background: rgba(255, 255, 255, 0.07);
+    border: 1px solid var(--line); font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; transition: all 0.2s;
+  }
+  .ghost:hover { background: rgba(255, 255, 255, 0.14); }
+  .ghost.wait { border-color: var(--warn); color: var(--warn); }
+
+  .go {
+    width: 100%; padding: 16px; border: 0; border-radius: 18px; cursor: pointer; color: #080808; background: #fff;
+    font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: 0.20em; text-transform: uppercase;
+    box-shadow: 0 8px 28px rgba(255, 255, 255, 0.14); transition: transform 0.15s, box-shadow 0.25s, opacity 0.25s;
+  }
+  .go:hover { transform: translateY(-2px); box-shadow: 0 12px 34px rgba(255, 255, 255, 0.24); }
+  .go:active { transform: translateY(0) scale(0.99); }
+  .go.stop { color: #fff; background: #2a2a2a; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); }
+  .go:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+</style>
+</head>
+<body>
+
+<!-- Hintergrund: assets\bg.jpg (optional) + Team-Logo -->
+<div class="bg" aria-hidden="true">
+  <div class="bg-img"></div>
+  <img class="bg-logo" id="bgLogo" alt="" />
+  <div class="bg-fade"></div>
+</div>
+
+<!-- Resize-Kanten (rahmenloses Fenster) -->
+<div class="rs rs-n" data-dir="n"></div><div class="rs rs-s" data-dir="s"></div>
+<div class="rs rs-e" data-dir="e"></div><div class="rs rs-w" data-dir="w"></div>
+<div class="rs rs-ne" data-dir="ne"></div><div class="rs rs-nw" data-dir="nw"></div>
+<div class="rs rs-se" data-dir="se"></div><div class="rs rs-sw" data-dir="sw"></div>
+
+<!-- Eigene Titelleiste -->
+<header class="titlebar">
+  <div class="tb-brand drag-region">
+    <svg class="tb-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+      <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/>
+      <path d="M13 7l-4 6h3l-1 4 4-6h-3z" fill="currentColor" stroke="none"/>
+    </svg>
+    <span class="tb-title">WARDOGS</span>
+    <span class="tb-sub">AUTOKLICKER</span>
+  </div>
+
+  <div class="status" id="status" data-tone="ok"><span class="dot"></span><span id="statusText">Bereit</span></div>
+
+  <div class="tb-drag drag-region"></div>
+
+  <div class="tb-controls">
+    <button id="btnMin" title="Minimieren" aria-label="Minimieren">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 7h10"/></svg>
+    </button>
+    <button id="btnMax" title="Maximieren" aria-label="Maximieren">
+      <svg class="ico-max" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="9" height="9" rx="1"/></svg>
+      <svg class="ico-restore" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="4.5" width="7" height="7" rx="1"/><path d="M4.5 4.5V2.5h7v7h-2"/></svg>
+    </button>
+    <button id="btnClose" title="Schließen" aria-label="Schließen">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- Ladescreen -->
+<div id="loader">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/>
+    </svg>
+  </div>
+  <div class="loader-title">WARDOGS</div>
+  <div class="loader-sub">Autoklicker wird geladen</div>
+  <div class="spinner"></div>
+</div>
+
+<!-- Hauptfenster -->
+<div id="app">
+  <nav class="sidebar" id="mainNav" aria-label="Hauptnavigation">
+    <button data-page="wardogs" class="on" data-tip="Wardogs" aria-label="Wardogs">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M22 12h-4M6 12H2M12 6V2M12 22v-4"/></svg>
+    </button>
+    <button data-page="clicker" data-tip="Autoklicker" aria-label="Autoklicker">
+      <svg viewBox="0 0 24 24"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg>
+    </button>
+    <button data-page="minecraft" data-tip="Minecraft" aria-label="Minecraft">
+      <svg viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+    </button>
+    <div class="sb-spacer"></div>
+    <div class="sb-ver">V1.2</div>
+  </nav>
+
+  <main class="content">
+    <div class="shell">
+      <!-- Linke Karte -->
+      <section class="panel frame">
+        <div class="panel-in">
+          <section class="view" id="pageWardogs">
+            <div class="head">
+              <div class="eyebrow">Wardogs</div>
+              <h1>Team wählen</h1>
+              <p>Wähle das Team, das automatisch angeklickt werden soll.</p>
+            </div>
+            <div class="team-grid" id="teamGrid">
+              <button class="team-option selected" data-team="manticore">
+                <img data-img="manticore" alt="Manticore">
+                <span>Manticore</span>
+              </button>
+              <button class="team-option" data-team="valkyr">
+                <img data-img="valkyr" alt="Valkyra">
+                <span>Valkyra</span>
+              </button>
+              <button class="team-option" data-team="lonesta">
+                <img data-img="lonesta" alt="Lonestar">
+                <span>Lonestar</span>
+              </button>
+            </div>
+            <div class="team-status" id="teamStatus">Ausgewählt: Manticore</div>
+            <div class="hint">
+              Starte mit <b>F8</b>, während Wardogs im Vordergrund ist. Nach dem Countdown wird die Maus
+              mittig auf das gefundene Team bewegt und einmal geklickt. Abbrechen: <b>F8</b>.
+              Eigener Hintergrund: Bild als <b>assets\bg.jpg</b> ablegen.
+            </div>
+          </section>
+
+          <section class="view" id="pageClicker" hidden>
+            <div class="head">
+              <div class="eyebrow">Modul</div>
+              <h1>Autoklicker</h1>
+              <p>Normaler Mausklick-Autoklicker</p>
+            </div>
+            <div>
+              <div class="label"><span>Klick-Intervall</span><b id="ivLabel">100 ms</b></div>
+              <input type="range" id="ivRange" min="10" max="2000" step="10" value="100" />
+              <input type="number" id="ivNum" class="num" min="10" max="60000" value="100" />
+            </div>
+            <div>
+              <div class="label"><span>Maustaste</span></div>
+              <div class="seg" id="segButton">
+                <button data-v="left" class="on">Links</button>
+                <button data-v="middle">Mitte</button>
+                <button data-v="right">Rechts</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="view" id="pageMinecraft" hidden>
+            <div class="head">
+              <div class="eyebrow">Modul</div>
+              <h1>Minecraft</h1>
+              <p>Fast Bridge Einstellungen</p>
+            </div>
+            <div>
+              <div class="label"><span>Lauf-Zeit (ohne Sneak)</span><b id="walkLabel">150 ms</b></div>
+              <input type="range" id="walkRange" min="20" max="300" step="5" value="150" />
+            </div>
+            <div>
+              <div class="label"><span>Sneak-Zeit (nach Platzieren)</span><b id="sneakLabel">150 ms</b></div>
+              <input type="range" id="sneakRange" min="20" max="300" step="5" value="150" />
+            </div>
+            <div>
+              <div class="label"><span>Sneak-Taste in Minecraft</span></div>
+              <div class="seg" id="segSneakKey">
+                <button data-v="ctrl" class="on">Strg</button>
+                <button data-v="shift">Shift</button>
+              </div>
+            </div>
+            <div>
+              <div class="label"><span>Seitentaste (Diagonal)</span></div>
+              <div class="seg" id="segSide">
+                <button data-v="none" class="on">Aus</button>
+                <button data-v="a">S + A</button>
+                <button data-v="d">S + D</button>
+              </div>
+            </div>
+            <div class="hint">
+              Stell dich an die Kante, schau schräg nach unten auf die Blockkante und starte per Hotkey.
+              Das Tool hält <b>S</b> (optional + <b>A</b>/<b>D</b>) selbst gedrückt: Sneaken &rarr; Block setzen &rarr; Entsneaken. Lass dabei alle Tasten los.
+            </div>
+          </section>
+
+          <div class="mode-setting" id="modeSetting">
+            <div class="label"><span>Modus</span></div>
+            <div class="seg" id="segMode">
+              <button data-v="toggle" class="on">Umschalten</button>
+              <button data-v="hold">Gedrückt halten</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Rechte Karte -->
+      <section class="panel frame right">
+        <div class="panel-in">
+          <div class="count">
+            <div class="big" id="clicks">0</div>
+            <div class="small" id="countLabel">Team-Klicks</div>
+            <button class="link" id="resetBtn">Zähler zurücksetzen</button>
+          </div>
+          <div>
+            <div class="label"><span>Hotkey</span></div>
+            <div class="hotkey">
+              <span class="kbd" id="hotkey">F8</span>
+              <button class="ghost" id="hkBtn">Ändern</button>
+            </div>
+          </div>
+          <button class="go" id="goBtn">Team suchen</button>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  /* Bilder sind in die EXE eingebettet (Platzhalter werden von Rust ersetzt) */
+  const BG = '{{IMG_BG}}';
+  const IMG = {
+    manticore: '{{IMG_MANTICORE}}',
+    valkyr: '{{IMG_VALKYRA}}',
+    lonesta: '{{IMG_LONESTAR}}',
+  };
+
+  /* Bruecke zu Rust: Nachrichten = Zeilen, erste Zeile ist der Befehl */
+  function send(...parts) {
+    try { window.ipc.postMessage(parts.join('\n')); } catch (e) { console.error(e); }
+  }
+  const native = {
+    minimize: () => send('minimize'),
+    toggle_maximize: () => send('maximize'),
+    close_window: () => send('close'),
+    toggle: (feat) => send('toggle', feat),
+    reset_clicks: (feat) => send('reset', feat),
+    capture_hotkey: (feat) => send('capture', feat),
+    set_config: (c) => send('set_config',
+      'interval=' + c.interval, 'button=' + c.button, 'mode=' + c.mode,
+      'sneak=' + c.sneak, 'walk=' + c.walk, 'side=' + c.side,
+      'sneak_key=' + c.sneak_key, 'team=' + c.team),
+  };
+
+  let cfg = { interval: 100, button: 'left', mode: 'toggle', sneak: 150, walk: 150, side: 'none', sneak_key: 'ctrl', team: 'manticore' };
+  let page = 'wardogs';
+  let last = null;
+  const teamNames = { manticore: 'Manticore', valkyr: 'Valkyra', lonesta: 'Lonestar' };
+  const teamTheme = {
+    manticore: { color: '#2ee66b', file: IMG.manticore },
+    valkyr:    { color: '#ff4d4d', file: IMG.valkyr },
+    lonesta:   { color: '#4cc9ff', file: IMG.lonesta },
+  };
+  const featureForPage = { wardogs: 'wardogs', clicker: 'clicker', minecraft: 'bridge' };
+
+  function showApp() {
+    $('loader').classList.add('hide');
+    $('app').classList.add('show');
+  }
+
+  function api() { return window.ipc ? native : null; }
+  function pushConfig() { if (api()) api().set_config(cfg); }
+
+  /* Hintergrundbild (eingebettet; ein assets/bg.jpg neben der EXE ueberschreibt es) */
+  window.__setBg = (uri) => {
+    document.querySelector('.bg-img').style.backgroundImage = 'url("' + uri + '")';
+    document.body.classList.add('has-bg');
+  };
+  window.__setBg(BG);
+  document.querySelectorAll('img[data-img]').forEach((img) => { img.src = IMG[img.dataset.img]; });
+
+  /* ---------- Fenster ziehen / Groesse aendern ---------- */
+  document.querySelectorAll('.drag-region').forEach((el) => {
+    el.addEventListener('mousedown', (e) => { if (e.button === 0) send('drag'); });
+  });
+  document.querySelectorAll('.rs').forEach((el) => {
+    el.addEventListener('mousedown', (e) => { if (e.button === 0) send('resize', el.dataset.dir); });
+  });
+
+  /* ---------- Fenster-Buttons ---------- */
+  $('btnMin').addEventListener('click', () => api() && api().minimize());
+  $('btnMax').addEventListener('click', () => api() && api().toggle_maximize());
+  $('btnClose').addEventListener('click', () => api() && api().close_window());
+
+  /* ---------- Team-Theme (Logo-Hintergrund + Farbe) ---------- */
+  function applyTeamTheme(team) {
+    const theme = teamTheme[team];
+    if (!theme) return;
+    document.documentElement.style.setProperty('--team', theme.color);
+    const logo = $('bgLogo');
+    logo.classList.add('swap');
+    setTimeout(() => {
+      logo.src = theme.file;
+      logo.classList.remove('swap');
+    }, 220);
+  }
+
+  function fillRange(r) {
+    const p = Math.min(100, ((r.value - r.min) / (r.max - r.min)) * 100);
+    r.style.setProperty('--p', p + '%');
+  }
+
+  function setInterval_(v) {
+    v = Math.max(10, Math.min(60000, parseInt(v) || 100));
+    cfg.interval = v;
+    $('ivLabel').textContent = v + ' ms';
+    $('ivRange').value = Math.min(v, 2000);
+    $('ivNum').value = v;
+    fillRange($('ivRange'));
+    pushConfig();
+  }
+  $('ivRange').addEventListener('input', (e) => setInterval_(e.target.value));
+  $('ivNum').addEventListener('change', (e) => setInterval_(e.target.value));
+
+  function bindRange(id, key, labelId) {
+    const r = $(id);
+    const upd = (push) => {
+      cfg[key] = parseInt(r.value);
+      $(labelId).textContent = r.value + ' ms';
+      fillRange(r);
+      if (push) pushConfig();
+    };
+    r.addEventListener('input', () => upd(true));
+    upd(false);
+  }
+  bindRange('walkRange', 'walk', 'walkLabel');
+  bindRange('sneakRange', 'sneak', 'sneakLabel');
+
+  function segment(id, key) {
+    $(id).querySelectorAll('button').forEach((b) => {
+      b.addEventListener('click', () => {
+        $(id).querySelectorAll('button').forEach((x) => x.classList.remove('on'));
+        b.classList.add('on');
+        cfg[key] = b.dataset.v;
+        pushConfig();
+      });
+    });
+  }
+  segment('segButton', 'button');
+  segment('segMode', 'mode');
+  segment('segSide', 'side');
+  segment('segSneakKey', 'sneak_key');
+
+  function showPage(nextPage) {
+    page = nextPage;
+    document.querySelectorAll('.view').forEach((view) => {
+      view.hidden = view.id !== 'page' + nextPage[0].toUpperCase() + nextPage.slice(1);
+    });
+    document.querySelectorAll('#mainNav button').forEach((button) => {
+      button.classList.toggle('on', button.dataset.page === page);
+    });
+    $('modeSetting').hidden = page === 'wardogs';
+    $('countLabel').textContent =
+      page === 'wardogs' ? 'Team-Klicks' :
+      page === 'minecraft' ? 'Blöcke' : 'Klicks';
+    $('goBtn').textContent =
+      page === 'wardogs' ? 'Team suchen' :
+      page === 'minecraft' ? 'Fast Bridge starten' : 'Starten';
+    fillRange($('walkRange'));
+    fillRange($('sneakRange'));
+    fillRange($('ivRange'));
+    if (last) render(last);
+  }
+  $('mainNav').querySelectorAll('button').forEach((b) => {
+    b.addEventListener('click', () => {
+      showPage(b.dataset.page);
+    });
+  });
+
+  $('teamGrid').querySelectorAll('button').forEach((button) => {
+    button.addEventListener('click', () => {
+      cfg.team = button.dataset.team;
+      $('teamGrid').querySelectorAll('button').forEach((item) => {
+        item.classList.toggle('selected', item === button);
+      });
+      $('teamStatus').textContent = 'Ausgewählt: ' + teamNames[cfg.team];
+      applyTeamTheme(cfg.team);
+      pushConfig();
+    });
+  });
+  $('teamGrid').querySelectorAll('img').forEach((image) => {
+    image.addEventListener('error', () => {
+      image.hidden = true;
+      const placeholder = document.createElement('div');
+      placeholder.className = 'team-image-placeholder';
+      placeholder.textContent = 'PNG fehlt';
+      image.before(placeholder);
+    }, { once: true });
+  });
+
+  $('goBtn').addEventListener('click', () => api() && api().toggle(featureForPage[page]));
+  $('resetBtn').addEventListener('click', () => api() && api().reset_clicks(featureForPage[page]));
+
+  $('hkBtn').addEventListener('click', () => {
+    if (!api()) return;
+    const b = $('hkBtn');
+    b.classList.add('wait');
+    b.textContent = 'Taste drücken …';
+    $('hotkey').textContent = '…';
+    api().capture_hotkey(featureForPage[page]);   /* fertig, sobald der Zustand capturing=false meldet */
+  });
+
+  /* Farbe der Status-Pill: gruen = ok, orange = aktiv/Hinweis, rot = Fehler */
+  function statusTone(text, active) {
+    const t = (text || '').toLowerCase();
+    if (/fehler|nicht gefunden|png fehlt|ungültig|kontrast|transparent|unterbrochen|konnte nicht/.test(t)) return 'err';
+    if (active || /nicht bewegen|suche|abgebrochen|warte|klickt|bridget|vordergrund/.test(t)) return 'busy';
+    return 'ok';
+  }
+
+  function render(s) {
+    last = s;
+    const feat = featureForPage[page];
+    $('hotkey').textContent = s.capturing ? '…' : s.hotkeys[feat];
+    $('hkBtn').classList.toggle('wait', !!s.capturing);
+    $('hkBtn').textContent = s.capturing ? 'Taste drücken …' : 'Ändern';
+    $('btnMax').classList.toggle('is-max', !!s.maximized);
+    $('btnMax').title = s.maximized ? 'Wiederherstellen' : 'Maximieren';
+    const n = page === 'wardogs' ? s.wardogs_clicks :
+      page === 'clicker' ? s.clicks : s.blocks;
+    $('clicks').textContent = n.toLocaleString('de-DE');
+
+    const text =
+      page === 'wardogs' && s.active === 'wardogs' ? s.wardogs_status :
+      page === 'wardogs' && s.wardogs_status !== 'Bereit' ? s.wardogs_status :
+      s.active === 'clicker' ? 'Klickt gerade' :
+      s.active === 'bridge' ? 'Bridget gerade' :
+      (s.capturing ? 'Warte auf Taste' : 'Bereit');
+    $('statusText').textContent = text;
+    $('status').dataset.tone = statusTone(text, s.active === feat);
+
+    const go = $('goBtn');
+    const mine = s.active === feat;
+    if (page !== 'wardogs' && s.mode === 'hold') {
+      go.disabled = true;
+      go.classList.remove('stop');
+      go.textContent = 'Hotkey gedrückt halten';
+    } else {
+      go.disabled = false;
+      go.classList.toggle('stop', mine);
+      go.textContent = mine ? 'Stoppen' :
+        page === 'wardogs' ? 'Team suchen' :
+        page === 'minecraft' ? 'Fast Bridge starten' : 'Starten';
+    }
+  }
+
+  /* Rust schickt den Zustand nur, wenn er sich aendert (kein Polling noetig) */
+  window.__state = (s) => render(s);
+
+  applyTeamTheme(cfg.team);
+  showPage(page);
+  fillRange($('ivRange'));
+  showApp();
+  pushConfig();
+  send('ready');
+</script>
+</body>
+</html>
